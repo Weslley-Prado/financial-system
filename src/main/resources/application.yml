@@ -1,0 +1,256 @@
+server:
+  port: 8881
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 100
+    max-connections: 10000
+    connection-timeout: 5000
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 1024
+
+spring:
+  application:
+    name: itau-transfer-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:transferdb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: TransferApiHikariPool
+      maximum-pool-size: 30
+      minimum-idle: 10
+      idle-timeout: 30000
+      connection-timeout: 5000
+      max-lifetime: 600000
+      leak-detection-threshold: 60000
+      validation-timeout: 3000
+      
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+          fetch_size: 100
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+        
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=10000,expireAfterWrite=300s,recordStats
+
+# External APIs Configuration
+external:
+  cadastro:
+    base-url: ${CADASTRO_API_URL:http://localhost:8081}
+    timeout:
+      connect: 2000
+      read: 3000
+  bacen:
+    base-url: ${BACEN_API_URL:http://localhost:8082}
+    timeout:
+      connect: 2000
+      read: 5000
+
+# Business Rules Configuration
+business:
+  transfer:
+    daily-limit: 1000.00
+    min-amount: 0.01
+    max-amount: 100000.00
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 100
+        minimumNumberOfCalls: 20
+        permittedNumberOfCallsInHalfOpenState: 10
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        slowCallDurationThreshold: 2s
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.HttpServerErrorException
+    instances:
+      cadastroApi:
+        baseConfig: default
+        slidingWindowSize: 50
+        failureRateThreshold: 40
+      bacenApi:
+        baseConfig: default
+        slidingWindowSize: 100
+        waitDurationInOpenState: 60s
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.HttpServerErrorException
+
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+        ignoreExceptions:
+          - com.itau.transferapi.domain.exception.BusinessException
+    instances:
+      cadastroApi:
+        baseConfig: default
+        maxAttempts: 2
+        waitDuration: 300ms
+      bacenApi:
+        baseConfig: default
+        maxAttempts: 5
+        waitDuration: 1s
+        enableExponentialBackoff: true
+
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 1000
+        limitRefreshPeriod: 1s
+        timeoutDuration: 100ms
+    instances:
+      bacenApi:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 500ms
+
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 100
+        maxWaitDuration: 50ms
+    instances:
+      cadastroApi:
+        maxConcurrentCalls: 50
+      bacenApi:
+        maxConcurrentCalls: 30
+
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 3s
+        cancelRunningFuture: true
+    instances:
+      cadastroApi:
+        timeoutDuration: 2s
+      bacenApi:
+        timeoutDuration: 5s
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers,ratelimiters
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms, 500ms
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.itau.transferapi: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+    io.github.resilience4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] %-5level %logger{36} - %msg%n"
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:transferdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+external:
+  cadastro:
+    base-url: http://localhost:8881/mock/cadastro
+  bacen:
+    base-url: http://localhost:8881/mock/bacen
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+
