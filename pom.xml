@@ -24,7 +24,7 @@
         <lombok.version>1.18.30</lombok.version>
         <springdoc.version>2.3.0</springdoc.version>
         <testcontainers.version>1.19.3</testcontainers.version>
-        <archunit.version>1.2.1</archunit.version>
+        <archunit.version>1.4.1</archunit.version>
         <wiremock.version>3.3.1</wiremock.version>
     </properties>
 
