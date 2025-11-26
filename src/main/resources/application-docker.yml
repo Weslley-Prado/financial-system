@@ -1,0 +1,29 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:transferdb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  
+  flyway:
+    enabled: true
+
+external:
+  cadastro:
+    base-url: ${CADASTRO_API_URL:http://localhost:8080/mock/cadastro}
+  bacen:
+    base-url: ${BACEN_API_URL:http://localhost:8080/mock/bacen}
+
+logging:
+  level:
+    root: INFO
+    com.itau.transferapi: INFO
+
+
