@@ -1,0 +1,1265 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "🏦 Itaú Transfer API",
+    "description": "# Itaú Transfer API - Case Técnico\n\n## 📋 Descrição\nAPI REST para operações de **Consulta de Saldo** e **Transferência Bancária** entre contas correntes.\n\n## 🎯 Requisitos Atendidos\n- ✅ Validação de conta ativa\n- ✅ Validação de saldo e limite disponível\n- ✅ Limite diário de R$ 1.000,00\n- ✅ Notificação ao BACEN\n- ✅ Tratamento de rate limit (HTTP 429)\n- ✅ Padrões de resiliência\n\n## 🧪 Contas de Teste\n\n| Conta | Agência | Cliente | Saldo | Limite | Status |\n|-------|---------|---------|-------|--------|--------|\n| `12345-6` | `0001` | João Silva | R$ 5.000 | R$ 10.000 | ✅ Ativa |\n| `98765-4` | `0002` | Maria Santos | R$ 3.000 | R$ 5.000 | ✅ Ativa |\n| `11111-1` | `0001` | Carlos Oliveira | R$ 1.000 | R$ 2.000 | ❌ Inativa |\n| `22222-2` | `0001` | João Silva | R$ 100 | R$ 50 | ✅ Ativa (limite baixo) |\n\n## 📊 Códigos de Erro\n\n| Código | Descrição | HTTP |\n|--------|-----------|------|\n| `ITAU-1001` | Requisição inválida | 400 |\n| `ITAU-1004` | Transferência para mesma conta | 422 |\n| `ITAU-2001` | Conta não está ativa | 422 |\n| `ITAU-2002` | Saldo insuficiente | 422 |\n| `ITAU-2003` | Limite disponível insuficiente | 422 |\n| `ITAU-2004` | Limite diário excedido | 422 |\n| `ITAU-2005` | Cliente não está ativo | 422 |\n| `ITAU-3001` | Conta não encontrada | 404 |\n| `ITAU-4005` | Rate limit BACEN | 429 |\n\n## 🔗 Links\n- [Swagger UI](http://localhost:8881/swagger-ui.html)\n- [Health Check](http://localhost:8881/actuator/health)\n\n---\n**Desenvolvido para Case Técnico Itaú**",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Log de início da requisição",
+          "console.log('🚀 Executando: ' + pm.info.requestName);",
+          "console.log('📍 URL: ' + pm.request.url.toString());",
+          "",
+          "// Timestamp para correlação",
+          "pm.variables.set('timestamp', new Date().toISOString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Log de resposta",
+          "console.log('✅ Status: ' + pm.response.code + ' ' + pm.response.status);",
+          "console.log('⏱️ Tempo: ' + pm.response.responseTime + 'ms');",
+          "",
+          "// Teste de performance global",
+          "pm.test('Performance: Resposta em menos de 500ms', function() {",
+          "    pm.expect(pm.response.responseTime).to.be.below(500);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8881",
+      "type": "string",
+      "description": "URL base da API"
+    },
+    {
+      "key": "apiVersion",
+      "value": "v1",
+      "type": "string",
+      "description": "Versão da API"
+    },
+    {
+      "key": "contaJoao",
+      "value": "12345-6",
+      "type": "string",
+      "description": "Número da conta do João"
+    },
+    {
+      "key": "agenciaJoao",
+      "value": "0001",
+      "type": "string",
+      "description": "Agência do João"
+    },
+    {
+      "key": "contaMaria",
+      "value": "98765-4",
+      "type": "string",
+      "description": "Número da conta da Maria"
+    },
+    {
+      "key": "agenciaMaria",
+      "value": "0002",
+      "type": "string",
+      "description": "Agência da Maria"
+    },
+    {
+      "key": "contaInativa",
+      "value": "11111-1",
+      "type": "string",
+      "description": "Conta inativa (Carlos)"
+    },
+    {
+      "key": "contaLimiteBaixo",
+      "value": "22222-2",
+      "type": "string",
+      "description": "Conta com limite baixo"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏥 Health & Monitoring",
+      "description": "Endpoints de monitoramento, métricas e saúde da aplicação.",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Aplicação está UP', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.equal('UP');",
+                  "});",
+                  "",
+                  "pm.test('Tem grupos liveness e readiness', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.groups).to.include('liveness');",
+                  "    pm.expect(json.groups).to.include('readiness');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "health"]
+            },
+            "description": "Verifica se a aplicação está saudável e pronta para receber requisições.\n\n**Resposta esperada:**\n- `status: UP` - Aplicação saudável\n- `groups: [liveness, readiness]` - Probes do Kubernetes"
+          },
+          "response": [
+            {
+              "name": "Aplicação Saudável",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/actuator/health"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"UP\",\n  \"groups\": [\"liveness\", \"readiness\"]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Métricas Prometheus",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/prometheus",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "prometheus"]
+            },
+            "description": "Exporta métricas no formato Prometheus para monitoramento.\n\n**Métricas incluídas:**\n- `http_server_requests` - Latência de requisições\n- `jvm_memory` - Uso de memória\n- `resilience4j_circuitbreaker` - Estado dos circuit breakers"
+          },
+          "response": []
+        },
+        {
+          "name": "Circuit Breakers Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Tem circuit breakers configurados', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.circuitBreakers).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/circuitbreakers",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "circuitbreakers"]
+            },
+            "description": "Exibe o estado dos Circuit Breakers configurados.\n\n**Circuit Breakers:**\n- `cadastroApi` - API de Cadastro\n- `bacenApi` - API do BACEN"
+          },
+          "response": []
+        },
+        {
+          "name": "Rate Limiters Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/ratelimiters",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "ratelimiters"]
+            },
+            "description": "Exibe o estado dos Rate Limiters configurados para controle de vazão."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💰 Consulta de Saldo",
+      "description": "Endpoints para consulta de saldo e informações de conta corrente.",
+      "item": [
+        {
+          "name": "Consultar Saldo - João (Conta Ativa)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Resposta contém dados da conta', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.accountNumber).to.equal(pm.collectionVariables.get('contaJoao'));",
+                  "    pm.expect(json.agencyNumber).to.equal(pm.collectionVariables.get('agenciaJoao'));",
+                  "});",
+                  "",
+                  "pm.test('Resposta contém saldo', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.balance).to.be.a('number');",
+                  "    pm.expect(json.formattedBalance).to.include('R$');",
+                  "});",
+                  "",
+                  "pm.test('Resposta contém limite disponível', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.availableLimit).to.be.a('number');",
+                  "    pm.expect(json.dailyTransferLimitAvailable).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('Resposta contém nome do titular', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.holderName).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Performance: Resposta em menos de 100ms', function() {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(100);",
+                  "});",
+                  "",
+                  "// Salvar saldo para uso posterior",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('saldoJoao', json.balance);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "description": "Tipo de resposta aceito"
+              },
+              {
+                "key": "X-Correlation-ID",
+                "value": "{{$guid}}",
+                "description": "ID de correlação para rastreamento"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/accounts/{{contaJoao}}/balance?agencyNumber={{agenciaJoao}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "accounts", "{{contaJoao}}", "balance"],
+              "query": [
+                {
+                  "key": "agencyNumber",
+                  "value": "{{agenciaJoao}}",
+                  "description": "Número da agência"
+                }
+              ]
+            },
+            "description": "Consulta o saldo da conta do **João Silva**.\n\n**Dados da Conta:**\n- Conta: `12345-6`\n- Agência: `0001`\n- Saldo inicial: R$ 5.000,00\n- Limite: R$ 10.000,00\n- Status: Ativa"
+          },
+          "response": [
+            {
+              "name": "Sucesso",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/api/{{apiVersion}}/accounts/12345-6/balance?agencyNumber=0001"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"accountNumber\": \"12345-6\",\n  \"agencyNumber\": \"0001\",\n  \"holderName\": \"João Silva\",\n  \"balance\": 5000.00,\n  \"formattedBalance\": \"R$ 5.000,00\",\n  \"availableLimit\": 10000.00,\n  \"formattedAvailableLimit\": \"R$ 10.000,00\",\n  \"dailyTransferLimitAvailable\": 1000.00,\n  \"formattedDailyTransferLimit\": \"R$ 1.000,00\",\n  \"queryTime\": \"2024-01-15T10:30:00\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Consultar Saldo - Maria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Conta da Maria', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.accountNumber).to.equal(pm.collectionVariables.get('contaMaria'));",
+                  "});",
+                  "",
+                  "// Salvar saldo para uso posterior",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('saldoMaria', json.balance);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Accept", "value": "application/json"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/accounts/{{contaMaria}}/balance?agencyNumber={{agenciaMaria}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "accounts", "{{contaMaria}}", "balance"],
+              "query": [
+                {"key": "agencyNumber", "value": "{{agenciaMaria}}"}
+              ]
+            },
+            "description": "Consulta o saldo da conta da **Maria Santos**.\n\n**Dados da Conta:**\n- Conta: `98765-4`\n- Agência: `0002`\n- Saldo inicial: R$ 3.000,00"
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Conta Não Encontrada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 404', function() {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Código de erro correto', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.code).to.equal('ITAU-3001');",
+                  "    pm.expect(json.message).to.include('não encontrad');",
+                  "});",
+                  "",
+                  "pm.test('Resposta contém traceId', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.traceId).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Accept", "value": "application/json"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/accounts/99999-9/balance?agencyNumber=9999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "accounts", "99999-9", "balance"],
+              "query": [
+                {"key": "agencyNumber", "value": "9999"}
+              ]
+            },
+            "description": "Tenta consultar uma conta que **não existe** no sistema.\n\n**Esperado:**\n- HTTP 404 Not Found\n- Código: `ITAU-3001`"
+          },
+          "response": [
+            {
+              "name": "Conta Não Encontrada",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": \"ITAU-3001\",\n  \"message\": \"Conta não encontrada\",\n  \"details\": \"Conta não encontrado: 99999-9\",\n  \"path\": \"/api/v1/accounts/99999-9/balance\",\n  \"timestamp\": \"2024-01-15T10:30:00\",\n  \"traceId\": \"abc12345\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "❌ Conta Inativa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 422', function() {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test('Código de erro correto', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.code).to.equal('ITAU-2001');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Accept", "value": "application/json"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/accounts/{{contaInativa}}/balance?agencyNumber=0001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "accounts", "{{contaInativa}}", "balance"],
+              "query": [
+                {"key": "agencyNumber", "value": "0001"}
+              ]
+            },
+            "description": "Tenta consultar uma conta **inativa**.\n\n**Conta:** Carlos Oliveira (11111-1)\n\n**Esperado:**\n- HTTP 422 Unprocessable Entity\n- Código: `ITAU-2001`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💸 Transferências",
+      "description": "Endpoints para realização de transferências bancárias entre contas correntes.",
+      "item": [
+        {
+          "name": "✅ Cenários de Sucesso",
+          "description": "Transferências que devem ser realizadas com sucesso.",
+          "item": [
+            {
+              "name": "Transferir R$ 100,00 (João → Maria)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 201 Created', function() {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test('Resposta contém transferId', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.transferId).to.be.a('string');",
+                      "    pm.expect(json.transferId).to.match(/^[0-9a-f-]{36}$/);",
+                      "    ",
+                      "    // Salvar para uso posterior",
+                      "    pm.collectionVariables.set('lastTransferId', json.transferId);",
+                      "});",
+                      "",
+                      "pm.test('Status é BACEN_NOTIFIED ou BACEN_PENDING', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(['BACEN_NOTIFIED', 'BACEN_PENDING']).to.include(json.status);",
+                      "});",
+                      "",
+                      "pm.test('Valor está correto', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.amount).to.equal(100.00);",
+                      "});",
+                      "",
+                      "pm.test('Contas estão corretas', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.sourceAccountNumber).to.equal(pm.collectionVariables.get('contaJoao'));",
+                      "    pm.expect(json.targetAccountNumber).to.equal(pm.collectionVariables.get('contaMaria'));",
+                      "});",
+                      "",
+                      "pm.test('Tem timestamps', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.createdAt).to.be.a('string');",
+                      "    pm.expect(json.completedAt).to.be.a('string');",
+                      "});",
+                      "",
+                      "pm.test('Performance: Resposta em menos de 100ms', function() {",
+                      "    pm.expect(pm.response.responseTime).to.be.below(100);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "description": "Tipo do conteúdo"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "description": "Tipo de resposta aceito"
+                  },
+                  {
+                    "key": "X-Correlation-ID",
+                    "value": "{{$guid}}",
+                    "description": "ID de correlação para rastreamento"
+                  },
+                  {
+                    "key": "X-Idempotency-Key",
+                    "value": "{{$guid}}",
+                    "description": "Chave de idempotência para evitar duplicação"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 100.00,\n  \"description\": \"Pagamento de serviços\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Realiza transferência de **R$ 100,00** da conta do João para a conta da Maria.\n\n**Origem:** João Silva (12345-6)\n**Destino:** Maria Santos (98765-4)\n**Valor:** R$ 100,00\n\n**Validações realizadas:**\n1. Conta origem ativa ✓\n2. Cliente ativo no cadastro ✓\n3. Saldo suficiente ✓\n4. Limite disponível ✓\n5. Limite diário não excedido ✓\n6. Notificação ao BACEN ✓"
+              },
+              "response": [
+                {
+                  "name": "Transferência com BACEN Notificado",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {"key": "Content-Type", "value": "application/json"},
+                    {"key": "Location", "value": "/api/v1/transfers/550e8400-e29b-41d4-a716-446655440000"}
+                  ],
+                  "body": "{\n  \"transferId\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"status\": \"BACEN_NOTIFIED\",\n  \"amount\": 100.00,\n  \"formattedAmount\": \"R$ 100,00\",\n  \"sourceAccountNumber\": \"12345-6\",\n  \"sourceAgencyNumber\": \"0001\",\n  \"targetAccountNumber\": \"98765-4\",\n  \"targetAgencyNumber\": \"0002\",\n  \"createdAt\": \"2024-01-15T10:30:00\",\n  \"completedAt\": \"2024-01-15T10:30:01\",\n  \"bacenNotificationId\": \"BCN-12345678\",\n  \"message\": \"Transferência realizada com sucesso\"\n}"
+                },
+                {
+                  "name": "Transferência com BACEN Pendente (Rate Limit)",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "body": "{\n  \"transferId\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"status\": \"BACEN_PENDING\",\n  \"amount\": 100.00,\n  \"formattedAmount\": \"R$ 100,00\",\n  \"sourceAccountNumber\": \"12345-6\",\n  \"sourceAgencyNumber\": \"0001\",\n  \"targetAccountNumber\": \"98765-4\",\n  \"targetAgencyNumber\": \"0002\",\n  \"createdAt\": \"2024-01-15T10:30:00\",\n  \"completedAt\": \"2024-01-15T10:30:01\",\n  \"bacenNotificationId\": null,\n  \"message\": \"Transferência realizada. Notificação ao BACEN pendente.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Transferir R$ 0,01 (Valor Mínimo)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 201', function() {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test('Valor mínimo aceito', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.amount).to.equal(0.01);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 0.01\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Testa o **valor mínimo** permitido para transferência: R$ 0,01"
+              },
+              "response": []
+            },
+            {
+              "name": "Transferir R$ 500,00 (Valor Médio)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 201', function() {",
+                      "    pm.response.to.have.status(201);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 500.00,\n  \"description\": \"Transferência de valor médio\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Transferência com **valor médio** de R$ 500,00."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "❌ Erros de Negócio",
+          "description": "Cenários que devem retornar erros de regra de negócio (HTTP 422).",
+          "item": [
+            {
+              "name": "Mesma Conta (ITAU-1004)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 422', function() {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-1004', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.code).to.equal('ITAU-1004');",
+                      "});",
+                      "",
+                      "pm.test('Mensagem menciona mesma conta', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.message.toLowerCase()).to.include('mesma conta');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaJoao}}\",\n  \"targetAgencyNumber\": \"{{agenciaJoao}}\",\n  \"amount\": 100.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir para a **mesma conta** de origem.\n\n**Esperado:**\n- HTTP 422\n- Código: `ITAU-1004`"
+              },
+              "response": [
+                {
+                  "name": "Mesma Conta",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "body": "{\n  \"code\": \"ITAU-1004\",\n  \"message\": \"Não é permitido transferir para a mesma conta\",\n  \"path\": \"/api/v1/transfers\",\n  \"timestamp\": \"2024-01-15T10:30:00\",\n  \"traceId\": \"abc12345\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Conta Origem Inexistente (ITAU-3001)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 404', function() {",
+                      "    pm.response.to.have.status(404);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-3001', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.code).to.equal('ITAU-3001');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"99999-9\",\n  \"sourceAgencyNumber\": \"9999\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 100.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir de uma conta que **não existe**.\n\n**Esperado:**\n- HTTP 404\n- Código: `ITAU-3001`"
+              },
+              "response": []
+            },
+            {
+              "name": "Conta Origem Inativa (ITAU-2001)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 422', function() {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-2001 ou ITAU-2005', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(['ITAU-2001', 'ITAU-2005']).to.include(json.code);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaInativa}}\",\n  \"sourceAgencyNumber\": \"0001\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 100.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir de uma conta **inativa** (Carlos Oliveira).\n\n**Esperado:**\n- HTTP 422\n- Código: `ITAU-2001` ou `ITAU-2005`"
+              },
+              "response": []
+            },
+            {
+              "name": "Saldo Insuficiente (ITAU-2002)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 422', function() {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-2002', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.code).to.equal('ITAU-2002');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaLimiteBaixo}}\",\n  \"sourceAgencyNumber\": \"0001\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 500.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir mais do que o **saldo disponível**.\n\nConta 22222-2 tem saldo de R$ 100,00, tentando transferir R$ 500,00.\n\n**Esperado:**\n- HTTP 422\n- Código: `ITAU-2002`"
+              },
+              "response": []
+            },
+            {
+              "name": "Limite Insuficiente (ITAU-2003)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 422', function() {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-2002 ou ITAU-2003', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(['ITAU-2002', 'ITAU-2003']).to.include(json.code);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaLimiteBaixo}}\",\n  \"sourceAgencyNumber\": \"0001\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 80.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir mais do que o **limite disponível**.\n\nConta 22222-2 tem limite de R$ 50,00, tentando transferir R$ 80,00.\n\n**Esperado:**\n- HTTP 422\n- Código: `ITAU-2003`"
+              },
+              "response": []
+            },
+            {
+              "name": "Limite Diário Excedido (ITAU-2004)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 422', function() {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "",
+                      "pm.test('Código de erro ITAU-2004', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.code).to.equal('ITAU-2004');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 1500.00,\n  \"description\": \"Valor acima do limite diário\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir mais do que o **limite diário** de R$ 1.000,00.\n\n**Esperado:**\n- HTTP 422\n- Código: `ITAU-2004`"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "⚠️ Erros de Validação",
+          "description": "Cenários que devem retornar erros de validação (HTTP 400).",
+          "item": [
+            {
+              "name": "Valor Negativo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 400', function() {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test('Contém erros de validação', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.fieldErrors).to.be.an('array');",
+                      "    pm.expect(json.fieldErrors.length).to.be.above(0);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": -100.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir com **valor negativo**.\n\n**Esperado:**\n- HTTP 400 Bad Request\n- Lista de erros de validação"
+              },
+              "response": []
+            },
+            {
+              "name": "Valor Zero",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 400', function() {",
+                      "    pm.response.to.have.status(400);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 0\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir com **valor zero**."
+              },
+              "response": []
+            },
+            {
+              "name": "Campos Obrigatórios Vazios",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 400', function() {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test('Múltiplos erros de validação', function() {",
+                      "    const json = pm.response.json();",
+                      "    pm.expect(json.fieldErrors.length).to.be.above(1);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"\",\n  \"sourceAgencyNumber\": \"\",\n  \"targetAccountNumber\": \"\",\n  \"targetAgencyNumber\": \"\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Envia requisição com **campos obrigatórios vazios**."
+              },
+              "response": []
+            },
+            {
+              "name": "Valor Acima do Máximo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code é 400', function() {",
+                      "    pm.response.to.have.status(400);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "Accept", "value": "application/json"}
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": 150000.00\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "{{apiVersion}}", "transfers"]
+                },
+                "description": "Tenta transferir acima do **valor máximo** (R$ 100.000,00)."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔄 Testes de Performance",
+      "description": "Requisições para testes de carga e performance. Use com o Collection Runner.",
+      "item": [
+        {
+          "name": "Transferência com Valor Aleatório",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gerar valor aleatório entre R$ 1,00 e R$ 50,00",
+                  "const amount = (Math.random() * 49 + 1).toFixed(2);",
+                  "pm.collectionVariables.set('randomAmount', amount);",
+                  "console.log('💰 Valor gerado: R$ ' + amount);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Resposta válida', function() {",
+                  "    pm.expect([201, 422]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Performance: < 100ms', function() {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(100);",
+                  "});",
+                  "",
+                  "// Coletar métricas",
+                  "let metrics = pm.collectionVariables.get('performanceMetrics');",
+                  "if (!metrics) metrics = [];",
+                  "else metrics = JSON.parse(metrics);",
+                  "",
+                  "metrics.push({",
+                  "    time: pm.response.responseTime,",
+                  "    status: pm.response.code,",
+                  "    timestamp: new Date().toISOString()",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('performanceMetrics', JSON.stringify(metrics));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Accept", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountNumber\": \"{{contaJoao}}\",\n  \"sourceAgencyNumber\": \"{{agenciaJoao}}\",\n  \"targetAccountNumber\": \"{{contaMaria}}\",\n  \"targetAgencyNumber\": \"{{agenciaMaria}}\",\n  \"amount\": {{randomAmount}},\n  \"description\": \"Teste de performance\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/transfers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "transfers"]
+            },
+            "description": "Use com o **Collection Runner** para executar múltiplas transferências com valores aleatórios.\n\n**Configuração sugerida:**\n- Iterations: 100\n- Delay: 10ms"
+          },
+          "response": []
+        },
+        {
+          "name": "Consulta Saldo (Teste de Cache)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Performance com cache: < 50ms', function() {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(50);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Accept", "value": "application/json"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/accounts/{{contaJoao}}/balance?agencyNumber={{agenciaJoao}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "accounts", "{{contaJoao}}", "balance"],
+              "query": [
+                {"key": "agencyNumber", "value": "{{agenciaJoao}}"}
+              ]
+            },
+            "description": "Teste de performance para verificar eficiência do **cache**.\n\nA segunda requisição deve ser mais rápida."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔧 Mock APIs",
+      "description": "Endpoints dos mocks de APIs externas (Cadastro e BACEN).",
+      "item": [
+        {
+          "name": "Mock Cadastro - Buscar João",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Cliente ativo', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.active).to.be.true;",
+                  "    pm.expect(json.name).to.equal('João Silva');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mock/cadastro/api/v1/clients/11111111-1111-1111-1111-111111111111",
+              "host": ["{{baseUrl}}"],
+              "path": ["mock", "cadastro", "api", "v1", "clients", "11111111-1111-1111-1111-111111111111"]
+            },
+            "description": "Busca dados do cliente **João Silva** no mock da API de Cadastro."
+          },
+          "response": []
+        },
+        {
+          "name": "Mock Cadastro - Buscar Maria",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mock/cadastro/api/v1/clients/22222222-2222-2222-2222-222222222222",
+              "host": ["{{baseUrl}}"],
+              "path": ["mock", "cadastro", "api", "v1", "clients", "22222222-2222-2222-2222-222222222222"]
+            },
+            "description": "Busca dados da cliente **Maria Santos** no mock da API de Cadastro."
+          },
+          "response": []
+        },
+        {
+          "name": "Mock BACEN - Estatísticas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Contém estatísticas', function() {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('totalNotifications');",
+                  "    pm.expect(json).to.have.property('totalRequests');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mock/bacen/api/v1/notifications/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["mock", "bacen", "api", "v1", "notifications", "stats"]
+            },
+            "description": "Retorna estatísticas do mock do BACEN:\n- Total de notificações\n- Total de requisições\n- Taxa de rate limit simulada"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📚 Documentação",
+      "description": "Links para documentação da API.",
+      "item": [
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/swagger-ui.html",
+              "host": ["{{baseUrl}}"],
+              "path": ["swagger-ui.html"]
+            },
+            "description": "Interface interativa **Swagger UI** para explorar e testar a API."
+          },
+          "response": []
+        },
+        {
+          "name": "OpenAPI Specification (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api-docs"]
+            },
+            "description": "Especificação **OpenAPI 3.0** em formato JSON."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
