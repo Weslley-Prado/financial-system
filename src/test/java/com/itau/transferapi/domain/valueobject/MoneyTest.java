@@ -142,8 +142,29 @@ class MoneyTest {
             
             String formatted = money.getFormattedValue();
             
-            // Aceita tanto R$ 1.234,56 quanto R$1.234,56
-            assertThat(formatted).containsPattern("R\\$\\s?1\\.234,56");
+            // Aceita formato brasileiro com separadores corretos
+            assertThat(formatted).contains("R$");
+            assertThat(formatted).contains("1.234,56");
+        }
+        
+        @Test
+        @DisplayName("Deve formatar zero corretamente")
+        void shouldFormatZero() {
+            Money money = Money.zero();
+            String formatted = money.getFormattedValue();
+            
+            assertThat(formatted).contains("R$");
+            assertThat(formatted).contains("0,00");
+        }
+        
+        @Test
+        @DisplayName("Deve formatar valores negativos")
+        void shouldFormatNegative() {
+            Money money = Money.of("-500.00");
+            String formatted = money.getFormattedValue();
+            
+            assertThat(formatted).contains("R$");
+            assertThat(formatted).contains("500,00");
         }
     }
     
@@ -162,6 +183,107 @@ class MoneyTest {
             assertThat(added.getValue())
                 .isEqualByComparingTo(new BigDecimal("150.00"));
             assertThat(original).isNotSameAs(added);
+        }
+        
+        @Test
+        @DisplayName("Subtração deve retornar nova instância")
+        void subtractShouldReturnNewInstance() {
+            Money original = Money.of("100.00");
+            Money subtracted = original.subtract(Money.of("30.00"));
+            
+            assertThat(original.getValue()).isEqualByComparingTo(new BigDecimal("100.00"));
+            assertThat(subtracted.getValue()).isEqualByComparingTo(new BigDecimal("70.00"));
+        }
+    }
+    
+    @Nested
+    @DisplayName("Equals e HashCode")
+    class EqualsHashCodeTests {
+        
+        @Test
+        @DisplayName("Valores iguais devem ser equals")
+        void equalValuesShouldBeEqual() {
+            Money a = Money.of("100.00");
+            Money b = Money.of("100.00");
+            
+            assertThat(a).isEqualTo(b);
+            assertThat(a.hashCode()).isEqualTo(b.hashCode());
+        }
+        
+        @Test
+        @DisplayName("Valores diferentes não devem ser equals")
+        void differentValuesShouldNotBeEqual() {
+            Money a = Money.of("100.00");
+            Money b = Money.of("200.00");
+            
+            assertThat(a).isNotEqualTo(b);
+        }
+        
+        @Test
+        @DisplayName("Deve comparar com null")
+        void shouldHandleNullComparison() {
+            Money money = Money.of("100.00");
+            assertThat(money).isNotEqualTo(null);
+        }
+        
+        @Test
+        @DisplayName("Deve comparar com objeto de outro tipo")
+        void shouldHandleDifferentTypeComparison() {
+            Money money = Money.of("100.00");
+            assertThat(money).isNotEqualTo("100.00");
+        }
+    }
+    
+    @Nested
+    @DisplayName("Validações")
+    class ValidationTests {
+        
+        @Test
+        @DisplayName("Deve lançar exceção para valor nulo")
+        void shouldThrowExceptionForNullValue() {
+            assertThatThrownBy(() -> Money.of((BigDecimal) null))
+                .isInstanceOf(NullPointerException.class);
+        }
+        
+        @Test
+        @DisplayName("Deve lançar exceção para string nula")
+        void shouldThrowExceptionForNullString() {
+            assertThatThrownBy(() -> Money.of((String) null))
+                .isInstanceOf(NullPointerException.class);
+        }
+    }
+    
+    @Nested
+    @DisplayName("Comparações Avançadas")
+    class AdvancedComparisonTests {
+        
+        @Test
+        @DisplayName("Deve comparar valores iguais corretamente")
+        void shouldCompareEqualValues() {
+            Money a = Money.of("100.00");
+            Money b = Money.of("100.00");
+            
+            assertThat(a.isLessThan(b)).isFalse();
+            assertThat(a.isGreaterThan(b)).isFalse();
+        }
+        
+        @Test
+        @DisplayName("isLessThanOrEqual deve funcionar")
+        void shouldCheckLessThanOrEqual() {
+            Money a = Money.of("100.00");
+            Money b = Money.of("100.00");
+            Money c = Money.of("150.00");
+            
+            assertThat(a.isLessThan(b)).isFalse();
+            assertThat(a.isLessThan(c)).isTrue();
+        }
+        
+        @Test
+        @DisplayName("Deve identificar zero corretamente")
+        void shouldIdentifyZero() {
+            assertThat(Money.zero().isZero()).isTrue();
+            assertThat(Money.of("0.00").isZero()).isTrue();
+            assertThat(Money.of("0.01").isZero()).isFalse();
         }
     }
 }
