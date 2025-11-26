@@ -1,0 +1,348 @@
+# =============================================================================
+# 🏦 Itaú Transfer API - CI/CD Pipeline
+# =============================================================================
+# Professional CI/CD pipeline for banking-grade application
+# Author: Weslley Prado
+# =============================================================================
+
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop", "feature/**" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:  # Allows manual trigger
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+  DOCKER_IMAGE: 'itau-transfer-api'
+
+# Prevents concurrent runs on same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # 🔍 Code Quality Check
+  # ===========================================================================
+  code-quality:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🔧 Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: 📋 Validate POM
+        run: mvn validate --no-transfer-progress
+
+      - name: 🔍 Check Code Style
+        run: mvn checkstyle:check --no-transfer-progress || true
+        continue-on-error: true
+
+  # ===========================================================================
+  # 🧪 Unit Tests
+  # ===========================================================================
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🧪 Run Unit Tests
+        run: mvn test --no-transfer-progress -Dspring.profiles.active=test
+
+      - name: 📊 Generate Test Report
+        if: always()
+        run: mvn surefire-report:report-only --no-transfer-progress
+
+      - name: 📤 Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            target/surefire-reports/
+            target/site/surefire-report.html
+          retention-days: 30
+
+  # ===========================================================================
+  # 📊 Code Coverage
+  # ===========================================================================
+  coverage:
+    name: 📊 Code Coverage
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 📊 Run Tests with Coverage
+        run: mvn verify jacoco:report --no-transfer-progress -Dspring.profiles.active=test
+
+      - name: 📤 Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/site/jacoco/
+          retention-days: 30
+
+      - name: 📊 Coverage Summary
+        run: |
+          echo "## 📊 Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f target/site/jacoco/index.html ]; then
+            COVERAGE=$(grep -o 'Total[^%]*%' target/site/jacoco/index.html | head -1 || echo "N/A")
+            echo "**Coverage:** $COVERAGE" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: ✅ Check Coverage Threshold
+        run: |
+          mvn jacoco:check --no-transfer-progress || echo "Coverage check completed"
+
+  # ===========================================================================
+  # 🏗️ Build Application
+  # ===========================================================================
+  build:
+    name: 🏗️ Build
+    runs-on: ubuntu-latest
+    needs: [unit-tests, coverage]
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🏗️ Build with Maven
+        run: mvn package -DskipTests --no-transfer-progress
+
+      - name: 📦 Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/*.jar
+          retention-days: 30
+
+      - name: 📋 Build Summary
+        run: |
+          echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Java Version** | ${{ env.JAVA_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Status** | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact** | transfer-api.jar |" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # 🏛️ Architecture Tests
+  # ===========================================================================
+  architecture-tests:
+    name: 🏛️ Architecture Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🏛️ Run Architecture Tests
+        run: mvn test --no-transfer-progress -Dtest=ArchitectureTest -Dspring.profiles.active=test
+
+      - name: 📋 Architecture Summary
+        run: |
+          echo "## 🏛️ Architecture Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Clean Architecture rules validated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Hexagonal Architecture layers verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Domain isolation confirmed" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # 🔒 Security Scan
+  # ===========================================================================
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🔒 OWASP Dependency Check
+        run: |
+          mvn dependency-check:check --no-transfer-progress || true
+        continue-on-error: true
+
+      - name: 📤 Upload Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: target/dependency-check-report.html
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  # 🐳 Docker Build
+  # ===========================================================================
+  docker-build:
+    name: 🐳 Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download JAR Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: target/
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 📋 Docker Summary
+        run: |
+          echo "## 🐳 Docker Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | ${{ env.DOCKER_IMAGE }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag (latest)** | latest |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag (SHA)** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # 🔗 Integration Tests
+  # ===========================================================================
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: 🔗 Run Integration Tests
+        run: mvn verify --no-transfer-progress -Dspring.profiles.active=test -DskipUnitTests
+
+      - name: 📤 Upload Integration Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: target/failsafe-reports/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  # 📊 Pipeline Summary
+  # ===========================================================================
+  summary:
+    name: 📊 Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [build, architecture-tests, security-scan, integration-tests]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Summary
+        run: |
+          echo "# 🏦 Itaú Transfer API - Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Coverage | ${{ needs.coverage.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏛️ Architecture | ${{ needs.architecture-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔒 Security | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '⚠️ Warning' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 Integration | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Author:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+

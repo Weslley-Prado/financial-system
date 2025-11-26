@@ -1,0 +1,45 @@
+# =============================================================================
+# 🏦 Itaú Transfer API - Code Owners
+# =============================================================================
+# Defines code ownership for automated review requests
+# Author: Weslley Prado
+# =============================================================================
+
+# Default owner for all files
+* @Weslley-Prado
+
+# Domain Layer - Core business logic (requires careful review)
+/src/main/java/com/itau/transferapi/domain/ @Weslley-Prado
+
+# Application Layer - Use cases
+/src/main/java/com/itau/transferapi/application/ @Weslley-Prado
+
+# Infrastructure Layer - Adapters and external integrations
+/src/main/java/com/itau/transferapi/infrastructure/ @Weslley-Prado
+
+# Web Layer - Controllers and API
+/src/main/java/com/itau/transferapi/web/ @Weslley-Prado
+
+# Configuration files
+*.yml @Weslley-Prado
+*.yaml @Weslley-Prado
+*.properties @Weslley-Prado
+
+# Build configuration
+pom.xml @Weslley-Prado
+Dockerfile @Weslley-Prado
+docker-compose.yml @Weslley-Prado
+
+# CI/CD
+/.github/ @Weslley-Prado
+
+# Documentation
+*.md @Weslley-Prado
+/docs/ @Weslley-Prado
+
+# Database migrations
+/src/main/resources/db/ @Weslley-Prado
+
+# Tests
+/src/test/ @Weslley-Prado
+

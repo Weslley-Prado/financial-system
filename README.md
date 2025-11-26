@@ -27,6 +27,7 @@
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [Como Executar](#-como-executar)
 - [Testes](#-testes)
+- [CI/CD Pipeline](#-cicd-pipeline)
 - [Decisões Arquiteturais](#-decisões-arquiteturais)
 - [Escalabilidade e Performance](#-escalabilidade-e-performance)
 
@@ -526,6 +527,78 @@ docker-compose up -d
 | **Controller Tests** | 11 | MockMvc com cenários de sucesso e erro |
 | **Integration Tests** | 4 | Spring Boot Test completo |
 | **Architecture Tests** | 12 | ArchUnit para validar camadas |
+
+---
+
+## 🔄 CI/CD Pipeline
+
+### GitHub Actions Workflow
+
+O projeto inclui um pipeline CI/CD profissional configurado com GitHub Actions:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        🚀 CI/CD PIPELINE                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │ 🔍 Code      │───▶│ 🧪 Unit      │───▶│ 📊 Coverage  │               │
+│  │   Quality    │    │   Tests      │    │   Report     │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                                       │                        │
+│         ▼                                       ▼                        │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │ 🏛️ Arch      │    │ 🏗️ Build     │◀───│ 🔗 Integration│               │
+│  │   Tests      │    │   JAR        │    │   Tests      │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                   │                                            │
+│         ▼                   ▼                                            │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │ 🔒 Security  │    │ 🐳 Docker    │───▶│ 📊 Summary   │               │
+│  │   Scan       │    │   Build      │    │   Report     │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Jobs do Pipeline
+
+| Job | Descrição | Trigger |
+|-----|-----------|---------|
+| 🔍 **Code Quality** | Validação de POM e estilo de código | Push/PR |
+| 🧪 **Unit Tests** | Executa 194 testes unitários | Push/PR |
+| 📊 **Coverage** | Gera relatório JaCoCo (100% cobertura) | Push/PR |
+| 🏛️ **Architecture Tests** | Valida Clean Architecture com ArchUnit | Push/PR |
+| 🏗️ **Build** | Compila e gera JAR | Push/PR |
+| 🔒 **Security Scan** | OWASP Dependency Check | Push/PR |
+| 🐳 **Docker Build** | Build da imagem Docker | Push (main) |
+| 🔗 **Integration Tests** | Testes de integração E2E | Push/PR |
+
+### Automações Adicionais
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Dependabot** | Atualização automática de dependências (semanal) |
+| **CODEOWNERS** | Revisão obrigatória por owners |
+| **PR Template** | Template padronizado para Pull Requests |
+| **Issue Templates** | Templates para Bug Reports e Features |
+
+### Executando o Pipeline Localmente
+
+```bash
+# Simular o pipeline completo
+./mvnw clean verify
+
+# Apenas testes unitários
+./mvnw test
+
+# Gerar relatório de cobertura
+./mvnw test jacoco:report
+open target/site/jacoco/index.html
+
+# Verificar segurança
+./mvnw dependency-check:check
+```
 
 ---
 

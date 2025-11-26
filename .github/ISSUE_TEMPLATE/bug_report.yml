@@ -1,0 +1,82 @@
+name: 🐛 Bug Report
+description: Reporte um bug encontrado na aplicação
+title: "[BUG]: "
+labels: ["bug", "triage"]
+assignees:
+  - Weslley-Prado
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar este bug! Por favor, preencha as informações abaixo.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Descrição do Bug
+      description: Descreva claramente o que aconteceu
+      placeholder: Quando eu faço X, acontece Y ao invés de Z
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔄 Passos para Reproduzir
+      description: Liste os passos para reproduzir o bug
+      placeholder: |
+        1. Faça a requisição POST para /api/v1/transfers
+        2. Com o body { ... }
+        3. Observe o erro
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Comportamento Esperado
+      description: O que você esperava que acontecesse?
+      placeholder: A transferência deveria ser realizada com sucesso
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Comportamento Atual
+      description: O que realmente aconteceu?
+      placeholder: Retorna erro 500 com mensagem "Internal Server Error"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 🌍 Ambiente
+      description: Em qual ambiente o bug foi encontrado?
+      options:
+        - Local (H2)
+        - Docker
+        - Homologação
+        - Produção
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Logs
+      description: Cole logs relevantes aqui
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📎 Contexto Adicional
+      description: Qualquer informação adicional relevante
+    validations:
+      required: false
+

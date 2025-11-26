@@ -1,0 +1,60 @@
+name: ✨ Feature Request
+description: Sugira uma nova funcionalidade
+title: "[FEATURE]: "
+labels: ["enhancement", "triage"]
+assignees:
+  - Weslley-Prado
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por sugerir uma nova funcionalidade! Por favor, descreva sua ideia.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🎯 Problema
+      description: Descreva o problema que esta feature resolveria
+      placeholder: Atualmente não é possível fazer X, o que dificulta Y
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Solução Proposta
+      description: Descreva como você imagina a solução
+      placeholder: Gostaria que houvesse um endpoint que...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternativas Consideradas
+      description: Descreva alternativas que você considerou
+      placeholder: Também pensei em fazer X, mas Y seria melhor porque...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: ⚡ Prioridade
+      description: Qual a urgência desta feature?
+      options:
+        - 🔴 Alta - Crítico para operação
+        - 🟡 Média - Importante mas não urgente
+        - 🟢 Baixa - Nice to have
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📎 Contexto Adicional
+      description: Adicione mockups, diagramas ou referências
+    validations:
+      required: false
+
